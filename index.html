@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f3a5f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Losovač trojic</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #ffffff; --ink: #1d232b; --muted: #6b7280;
+    --accent: #1f3a5f; --accent-ink: #ffffff; --line: #e3ded3; --hit: #e8eef6;
+    --danger: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --card: #1b212a; --ink: #eef1f5; --muted: #9aa4b2;
+      --accent: #7fb0ff; --accent-ink: #0d1520; --line: #2a323d; --hit: #223047;
+      --danger: #ff6b5e;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 16px)
+             calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px);
+  }
+  .wrap { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; min-height: 100%; }
+  h1 {
+    margin: 4px 0 0; font-size: 22px; font-weight: 700; letter-spacing: .2px; text-align: center;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    touch-action: none; padding: 8px 0; cursor: default;
+  }
+  .result {
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    padding: 22px 18px; min-height: 196px; display: flex; flex-direction: column; justify-content: center; gap: 10px;
+  }
+  .result .placeholder { color: var(--muted); text-align: center; }
+  .person {
+    font-size: 30px; font-weight: 700; text-align: center; padding: 6px 0;
+    opacity: 0; transform: translateY(8px); animation: pop .35s ease forwards;
+  }
+  .person:nth-child(2) { animation-delay: .12s; }
+  .person:nth-child(3) { animation-delay: .24s; }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+  .result .meta { text-align: center; color: var(--muted); font-size: 13px; }
+  button.draw {
+    appearance: none; border: 0; border-radius: 20px; background: var(--accent); color: var(--accent-ink);
+    font-size: 24px; font-weight: 700; padding: 26px 16px; width: 100%; cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,.15); transition: transform .08s ease;
+  }
+  button.draw:active { transform: scale(.98); }
+  button.draw:disabled { opacity: .5; }
+  .history h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  .history ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .history li {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
+    display: flex; gap: 10px; align-items: baseline;
+  }
+  .history .n { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2.2em; font-size: 13px; }
+  .history .names { flex: 1; }
+  .history .t { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .history .empty { color: var(--muted); font-size: 14px; }
+
+  /* Skryté nastavení */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-end; justify-content: center; z-index: 10;
+  }
+  .overlay.open { display: flex; }
+  .sheet {
+    background: var(--card); color: var(--ink); width: 100%; max-width: 520px; max-height: 92vh; overflow: auto;
+    border-radius: 20px 20px 0 0; padding: 20px 18px calc(env(safe-area-inset-bottom) + 20px);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .sheet h3 { margin: 0; font-size: 18px; }
+  .sheet label { font-size: 14px; color: var(--muted); display: block; margin-bottom: 6px; }
+  .sheet textarea {
+    width: 100%; min-height: 220px; font: inherit; padding: 10px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink); resize: vertical;
+  }
+  .sheet select { font: inherit; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    appearance: none; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    border-radius: 12px; padding: 12px 14px; font: inherit; font-weight: 600; cursor: pointer; flex: 1;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.danger { color: var(--danger); border-color: var(--danger); }
+  .chances { font-size: 13px; display: grid; grid-template-columns: 1fr auto auto; gap: 2px 12px; }
+  .chances .h { color: var(--muted); }
+  .chances .r { text-align: right; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .confirm { display: none; background: var(--hit); border-radius: 12px; padding: 12px; gap: 10px; flex-direction: column; }
+  .confirm.open { display: flex; }
+  details summary { cursor: pointer; font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title">Losovač trojic</h1>
+
+  <div class="result" id="result" aria-live="polite">
+    <div class="placeholder">Zmáčkni tlačítko a vylosuj první trojici.</div>
+  </div>
+
+  <button class="draw" id="drawBtn">Vylosuj</button>
+
+  <section class="history">
+    <h2>Historie</h2>
+    <ol id="history"></ol>
+  </section>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <h3 id="setTitle">Nastavení</h3>
+
+    <div>
+      <label for="namesInput">Seznam jmen (jedno na řádek)</label>
+      <textarea id="namesInput" spellcheck="false"></textarea>
+      <div class="hint">Kdo v seznamu zůstane, si ponechá svou šanci. Nová jména začínají s plnou šancí.</div>
+    </div>
+
+    <div>
+      <label for="divisorSel">Po vylosování se šance vydělí</label>
+      <select id="divisorSel">
+        <option value="2">÷ 2 (opakování častější)</option>
+        <option value="4">÷ 4</option>
+        <option value="10">÷ 10 (doporučeno)</option>
+        <option value="100">÷ 100 (skoro přísná rotace)</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <button class="btn primary" id="saveBtn">Uložit</button>
+      <button class="btn" id="closeBtn">Zavřít</button>
+    </div>
+
+    <details>
+      <summary>Aktuální šance na vylosování</summary>
+      <div class="chances" id="chances"></div>
+    </details>
+
+    <button class="btn danger" id="resetBtn">Resetovat losování</button>
+    <div class="confirm" id="confirmBox">
+      <div>Opravdu smazat historii a vrátit všem plnou šanci? Seznam jmen zůstane.</div>
+      <div class="row">
+        <button class="btn danger" id="resetYes">Ano, resetovat</button>
+        <button class="btn" id="resetNo">Zpět</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const STORE_KEY = "losovac-trojic-v1";
+  const DEFAULT_NAMES = [
+    "Aleš","Bořek","Cyril","Čeněk","David","Emil","Filip","Gustav","Hynek","Chrudoš",
+    "Ivan","Jakub","Karel","Luboš","Marek","Norbert","Oldřich","Petr","Radek","Řehoř",
+    "Stanislav","Šimon","Tomáš","Urban","Vojtěch","Zdeněk","Žarko",
+    "Aleš2","Bořek2","Cyril2","Čeněk2","David2"
+  ];
+
+  // ---------- stav ----------
+  let state = load() || freshState(DEFAULT_NAMES, 10);
+
+  function freshState(names, divisor) {
+    return { divisor, people: names.map(n => ({ name: n, w: 1, count: 0 })), history: [] };
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      if (!s || !Array.isArray(s.people) || !Array.isArray(s.history)) return null;
+      return s;
+    } catch (e) { return null; }
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* bez úložiště to jede jen do zavření */ }
+  }
+
+  // ---------- losování ----------
+  // Vážený výběr 3 různých lidí. Kdo je vylosován, jeho váha se vydělí zvoleným číslem.
+  function drawTriple() {
+    const pool = state.people.map((p, i) => ({ i, w: p.w }));
+    const k = Math.min(3, pool.length);
+    const picked = [];
+    for (let j = 0; j < k; j++) {
+      const total = pool.reduce((a, p) => a + p.w, 0);
+      let r = randomFloat() * total;
+      let idx = pool.length - 1;
+      for (let m = 0; m < pool.length; m++) {
+        r -= pool[m].w;
+        if (r < 0) { idx = m; break; }
+      }
+      picked.push(pool[idx].i);
+      pool.splice(idx, 1);
+    }
+    picked.forEach(i => {
+      state.people[i].w /= state.divisor;
+      state.people[i].count += 1;
+    });
+    normalize();
+    const entry = { names: picked.map(i => state.people[i].name), t: Date.now() };
+    state.history.unshift(entry);
+    if (state.history.length > 500) state.history.length = 500;
+    save();
+    return entry;
+  }
+  // Udržuje čísla v rozumném rozsahu (nejvyšší váha = 1); poměry šancí se nemění.
+  function normalize() {
+    const max = Math.max(...state.people.map(p => p.w));
+    if (max > 0 && max < 1) state.people.forEach(p => { p.w /= max; });
+  }
+  function randomFloat() {
+    try {
+      const a = new Uint32Array(1); crypto.getRandomValues(a);
+      return a[0] / 4294967296;
+    } catch (e) { return Math.random(); }
+  }
+
+  // ---------- vykreslení ----------
+  const $ = id => document.getElementById(id);
+  const resultEl = $("result"), historyEl = $("history"), drawBtn = $("drawBtn");
+
+  function fmtTime(t) {
+    const d = new Date(t);
+    const today = new Date();
+    const hm = d.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
+    if (d.toDateString() === today.toDateString()) return hm;
+    return d.toLocaleDateString("cs-CZ", { day: "numeric", month: "numeric" }) + " " + hm;
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+
+  function renderResult(entry, fresh) {
+    if (!entry) {
+      resultEl.innerHTML = '<div class="placeholder">Zmáčkni tlačítko a vylosuj první trojici.</div>';
+      return;
+    }
+    const nr = state.history.length - state.history.indexOf(entry);
+    resultEl.innerHTML =
+      entry.names.map(n => `<div class="person"${fresh ? "" : ' style="animation:none;opacity:1;transform:none"'}>${esc(n)}</div>`).join("") +
+      `<div class="meta">Trojice č. ${nr} · ${fmtTime(entry.t)}</div>`;
+  }
+  function renderHistory() {
+    if (state.history.length <= 1) {
+      historyEl.innerHTML = state.history.length ? '' : '<li class="empty" style="background:none;border:0;padding:0">Zatím nic.</li>';
+      if (state.history.length === 1) historyEl.innerHTML = '<li class="empty" style="background:none;border:0;padding:0">Zatím jen ta nahoře.</li>';
+      return;
+    }
+    const total = state.history.length;
+    historyEl.innerHTML = state.history.slice(1).map((h, i) =>
+      `<li><span class="n">${total - 1 - i}.</span><span class="names">${h.names.map(esc).join(", ")}</span><span class="t">${fmtTime(h.t)}</span></li>`
+    ).join("");
+  }
+  function renderAll(fresh) {
+    renderResult(state.history[0], fresh);
+    renderHistory();
+    drawBtn.disabled = state.people.length < 1;
+  }
+
+  drawBtn.addEventListener("click", () => {
+    askMotionPermission();
+    const entry = drawTriple();
+    renderAll(true);
+    try { navigator.vibrate && navigator.vibrate(30); } catch (e) {}
+  });
+
+  // ---------- skryté nastavení ----------
+  const overlay = $("overlay");
+  function openSettings() {
+    if (overlay.classList.contains("open")) return;
+    $("namesInput").value = state.people.map(p => p.name).join("\n");
+    $("divisorSel").value = String(state.divisor);
+    $("confirmBox").classList.remove("open");
+    renderChances();
+    overlay.classList.add("open");
+  }
+  function closeSettings() { overlay.classList.remove("open"); }
+  function renderChances() {
+    const total = state.people.reduce((a, p) => a + p.w, 0) || 1;
+    const rows = state.people
+      .map(p => ({ ...p, pct: p.w / total * 100 }))
+      .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name, "cs"));
+    $("chances").innerHTML =
+      '<span class="h">Jméno</span><span class="h r">Vylosován</span><span class="h r">Šance*</span>' +
+      rows.map(p => `<span>${esc(p.name)}</span><span class="r">${p.count}×</span><span class="r">${p.pct.toFixed(1)} %</span>`).join("") +
+      '<span class="hint" style="grid-column:1/-1;margin-top:6px">* podíl na jednom tahu; v trojici je šance zhruba trojnásobná.</span>';
+  }
+
+  $("closeBtn").addEventListener("click", closeSettings);
+  overlay.addEventListener("click", e => { if (e.target === overlay) closeSettings(); });
+
+  $("saveBtn").addEventListener("click", () => {
+    const names = $("namesInput").value.split("\n").map(s => s.trim()).filter(Boolean);
+    const seen = new Set(), unique = [];
+    names.forEach(n => { if (!seen.has(n)) { seen.add(n); unique.push(n); } });
+    const old = new Map(state.people.map(p => [p.name, p]));
+    state.people = unique.map(n => old.get(n) || { name: n, w: 1, count: 0 });
+    state.divisor = Number($("divisorSel").value) || 10;
+    normalize();
+    save();
+    renderAll(false);
+    closeSettings();
+  });
+
+  $("resetBtn").addEventListener("click", () => $("confirmBox").classList.add("open"));
+  $("resetNo").addEventListener("click", () => $("confirmBox").classList.remove("open"));
+  $("resetYes").addEventListener("click", () => {
+    state = freshState(state.people.map(p => p.name), state.divisor);
+    save();
+    renderAll(false);
+    closeSettings();
+  });
+
+  // Vstup 1: podržet nadpis 3 sekundy, nebo na něj rychle ťuknout 5×
+  const title = $("title");
+  let holdTimer = null, taps = 0, tapTimer = null;
+  const startHold = () => { clearTimeout(holdTimer); holdTimer = setTimeout(openSettings, 3000); };
+  const endHold = () => clearTimeout(holdTimer);
+  const countTap = () => {
+    taps++; clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { taps = 0; }, 600);
+    if (taps >= 5) { taps = 0; openSettings(); }
+  };
+  title.addEventListener("touchstart", e => { e.preventDefault(); startHold(); }, { passive: false });
+  title.addEventListener("touchend", e => { e.preventDefault(); endHold(); countTap(); }, { passive: false });
+  title.addEventListener("touchcancel", endHold);
+  title.addEventListener("mousedown", startHold);
+  title.addEventListener("mouseup", () => { endHold(); countTap(); });
+  title.addEventListener("mouseleave", endHold);
+  title.addEventListener("contextmenu", e => e.preventDefault());
+
+  // Vstup 2: zatřesení telefonem (funguje, jen když prohlížeč dovolí senzor pohybu)
+  let motionAsked = false, lastShake = 0, shakeHits = 0, shakeWindow = 0;
+  function askMotionPermission() {
+    if (motionAsked) return;
+    motionAsked = true;
+    try {
+      if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+        DeviceMotionEvent.requestPermission().then(s => { if (s === "granted") listenMotion(); }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+  function listenMotion() {
+    try {
+      window.addEventListener("devicemotion", e => {
+        const a = e.accelerationIncludingGravity || e.acceleration;
+        if (!a) return;
+        const mag = Math.sqrt((a.x || 0) ** 2 + (a.y || 0) ** 2 + (a.z || 0) ** 2);
+        const now = Date.now();
+        if (mag > 25) {
+          if (now - shakeWindow > 1200) { shakeHits = 0; shakeWindow = now; }
+          if (now - lastShake > 120) { shakeHits++; lastShake = now; }
+          if (shakeHits >= 4) { shakeHits = 0; openSettings(); }
+        }
+      });
+    } catch (e) {}
+  }
+  listenMotion(); // Android: bez povolení; iPhone: po povolení při prvním losování
+
+  renderAll(false);
+})();
+</script>
+</body>
+</html>
